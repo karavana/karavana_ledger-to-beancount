@@ -161,13 +161,21 @@ def test_currency_is_translated():
       Assets:Cash
     """)
 
-
-def test_currency_with_pound_sign_is_translated():
-    """£40 -> 40 GBP"""
+    # Basic Test for GBP
     input = from_triple_quoted_string("""
     2017-01-02 An ordinary transaction
         Expenses:Restaurants    £40
         Assets:Cash
+    """)
+    output = translate_file(input)
+    assert output == from_triple_quoted_string("""
+    * Accounts
+    2010-01-01 open Assets:Cash
+    2010-01-01 open Expenses:Restaurants
+    * Transactions
+    2017-01-02 * "An ordinary transaction"
+      Expenses:Restaurants        40 GBP
+      Assets:Cash
     """)
     output = translate_file(input)
     assert output == from_triple_quoted_string("""
@@ -424,6 +432,24 @@ def test_translate_dates():
     """)
 
 
+def test_translate_dates():
+    input = from_triple_quoted_string("""
+    2/6/2010 An ordinary transaction
+        Expenses:Restaurants    $40
+        Assets:Cash
+    """)
+    output = translate_file(input)
+    assert output == from_triple_quoted_string("""
+    * Accounts
+    2010-01-01 open Assets:Cash
+    2010-01-01 open Expenses:Restaurants
+    * Transactions
+    2010-02-06 * "An ordinary transaction"
+      Expenses:Restaurants        40 USD
+      Assets:Cash
+    """)
+
+
 def test_flags_are_parsed():
     input = from_triple_quoted_string("""
     2/6/2010 ! An ordinary transaction
@@ -502,6 +528,7 @@ def test_strip_quoted_commodities():
     """)
 
 
+
 def test_barf_on_commodities_with_numbers():
     input = from_triple_quoted_string("""
     2/6/2010 An ordinary transaction
@@ -509,4 +536,85 @@ def test_barf_on_commodities_with_numbers():
         Assets:Cash
     """)
     with pytest.raises(InvalidCommodityError):
-        translate_file(input)
+        output = translate_file(input)
+
+    # GBP with space
+    input = from_triple_quoted_string("""
+    2017-01-02 An ordinary transaction
+        Expenses:Restaurants    £ 40
+        Assets:Cash
+    """)
+    output = translate_file(input)
+    assert output == from_triple_quoted_string("""
+    * Accounts
+    2010-01-01 open Assets:Cash
+    2010-01-01 open Expenses:Restaurants
+    * Transactions
+    2017-01-02 * "An ordinary transaction"
+      Expenses:Restaurants        40 GBP
+      Assets:Cash
+    """)
+
+    # Negative GBP
+    input = from_triple_quoted_string("""
+    2017-01-02 An ordinary transaction
+        Expenses:Restaurants    -£40
+        Assets:Cash
+    """)
+    output = translate_file(input)
+    assert output == from_triple_quoted_string("""
+    * Accounts
+    2010-01-01 open Assets:Cash
+    2010-01-01 open Expenses:Restaurants
+    * Transactions
+    2017-01-02 * "An ordinary transaction"
+      Expenses:Restaurants        -40 GBP
+      Assets:Cash
+    """)
+
+    # Fractional GBP
+    input = from_triple_quoted_string("""
+    2017-01-02 An ordinary transaction
+        Expenses:Restaurants    £40.50
+        Assets:Cash
+    """)
+    output = translate_file(input)
+    assert output == from_triple_quoted_string("""
+    * Accounts
+    2010-01-01 open Assets:Cash
+    2010-01-01 open Expenses:Restaurants
+    * Transactions
+    2017-01-02 * "An ordinary transaction"
+      Expenses:Restaurants        40.50 GBP
+      Assets:Cash
+    """)
+
+    # Incomplete decimal GBP
+    input = from_triple_quoted_string("""
+    2017-01-02 An ordinary transaction
+        Expenses:Restaurants    £.50
+        Assets:Cash
+    """)
+    output = translate_file(input)
+    assert output == from_triple_quoted_string("""
+    * Accounts
+    2010-01-01 open Assets:Cash
+    2010-01-01 open Expenses:Restaurants
+    * Transactions
+    2017-01-02 * "An ordinary transaction"
+      Expenses:Restaurants        0.50 GBP
+      Assets:Cash
+    """)
+
+    # Balance assertion for GBP
+    input = from_triple_quoted_string("""
+    2017-01-02 An ordinary transaction
+        Assets:Cash   = £40
+    """)
+    output = translate_file(input)
+    assert output == from_triple_quoted_string("""
+    * Accounts
+    2010-01-01 open Assets:Cash
+    * Transactions
+    2017-01-02 balance Assets:Cash   40 GBP
+    """)
